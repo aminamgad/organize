@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join, extname } from 'path';
-import { existsSync } from 'fs';
+import { put } from '@vercel/blob';
+import { extname } from 'path';
 import { handleApiError } from '@/lib/api-error-handler';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -53,28 +52,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // Sanitize and generate unique filename
+    // Generate unique filename
     const timestamp = Date.now();
     const sanitizedName = sanitizeFileName(file.name);
     const filename = `${timestamp}-${sanitizedName}`;
-    const filepath = join(uploadsDir, filename);
 
-    await writeFile(filepath, buffer);
-
-    const fileUrl = `/uploads/${filename}`;
+    // Upload to Vercel Blob Storage
+    const blob = await put(filename, file, {
+      access: 'public',
+      contentType: file.type,
+    });
 
     return NextResponse.json({
       success: true,
-      data: { url: fileUrl, filename },
+      data: { url: blob.url, filename },
     });
   } catch (error: unknown) {
     const { error: errorMessage, status } = handleApiError(error);
@@ -84,4 +75,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
